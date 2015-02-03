@@ -1,0 +1,12 @@
+[root]
+name = "opengl"
+version = "0.0.1"
+dependencies = [
+ "bmp 0.0.6 (git+https://github.com/sondrele/rust-bmp)",
+]
+
+[[package]]
+name = "bmp"
+version = "0.0.6"
+source = "git+https://github.com/sondrele/rust-bmp#a5b7c0c8308e564b60f17b39a216b40523a7740c"
+

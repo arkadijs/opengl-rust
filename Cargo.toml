@@ -1,0 +1,13 @@
+[package]
+name = "opengl"
+version = "0.0.1"
+authors = [ "Arkadi Shishlov <arkadi.shishlov@gmail.com>" ]
+
+[[bin]]
+name = "opengl"
+
+[dependencies.bmp]
+git = "https://github.com/sondrele/rust-bmp"
+
+#[dependencies.image]
+#git = "https://github.com/PistonDevelopers/image"
