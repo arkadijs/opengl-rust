@@ -4,4 +4,8 @@ After using Scala for several years and learning Go for random system tools, I d
 
 Day 1 is complete. Learned tons of nice and not-very-nice things about Rust.
 
-<img src="https://raw.githubusercontent.com/arkadijs/opengl-rust/master/renders/day1.png" margin-top="0.5em" />
+<img src="https://raw.githubusercontent.com/arkadijs/opengl-rust/master/renders/day1.png" margin-top="0.5em margin-bottom="0.5em" />
+
+Day 2 is complete. Adding [PistonDevelopers](https://github.com/PistonDevelopers/) to the game.
+
+<img src="https://raw.githubusercontent.com/arkadijs/opengl-rust/master/renders/day2.png" margin-top="0.5em margin-bottom="0.5em" />

@@ -1,11 +1,17 @@
 #![feature(box_syntax)]
+#![feature(box_patterns)]
 #![feature(core)]
-#![feature(io)]
-#![feature(path)]
+#![feature(old_io)]
+#![feature(old_path)]
+#![feature(str_words)]
 
 extern crate core;
 use core::num::*;
+use std::cmp;
 use std::num;
+
+extern crate vecmath;
+use vecmath::{Vector2, Vector3, Matrix3x2, Matrix3, vec3_sub, vec3_cross, vec3_dot, vec3_normalized};
 
 extern crate bmp;
 use bmp::{Image, Pixel, consts};
@@ -13,8 +19,11 @@ use bmp::{Image, Pixel, consts};
 fn main() {
     let box ref model = load("models/african_head.obj");
     let mut image = Image::new(500, 500);
-    draw(&mut image, model);
-    image.save("/tmp/opengl.bmp");
+    draw_poly(&mut image, model);
+    let bmp = "/tmp/opengl.bmp";
+    let _ = image.save(bmp).unwrap_or_else(|e| {
+        panic!("Failed to save {}: {}", bmp, e)
+    });
 }
 
 fn pixel(image: &mut Image, x: u32, y: u32, val: Pixel) {
@@ -76,7 +85,7 @@ fn load(filename: &str) -> Box<Model> {
         match maybe {
             Err(err) => panic!("I/O error reading {}: {}", filename, err),
             Ok(line) => {
-                match line.words().collect::<Vec<&str>>().as_slice() {
+                match line.words().collect::<Vec<_>>().as_slice() {
                     ["v", x, y, z]    => model.verts.push(Vec3f{ x: v(x), y: v(y), z: v(z) }),
                     ["f", _1, _2, _3] => model.faces.push(vec![f(_1), f(_2), f(_3)]),
                     _ => () ,
@@ -87,7 +96,7 @@ fn load(filename: &str) -> Box<Model> {
     model
 }
 
-fn draw(image: &mut Image, model: &Model) {
+fn draw_wireframe(image: &mut Image, model: &Model) {
     let w2 = image.get_width()  as f32 / 2.;
     let h2 = image.get_height() as f32 / 2.;
     for ref face in &model.faces {
@@ -101,6 +110,69 @@ fn draw(image: &mut Image, model: &Model) {
             let x1 = (v1.x+1.)*w2;
             let y1 = (v1.y+1.)*h2;
             line(x0 as u32, y0 as u32, x1 as u32, y1 as u32, image, consts::WHITE);
+        }
+    }
+}
+
+type Point = Vector2<i32>;
+type Triangle = Matrix3x2<i32>;
+type Triangle3f = Matrix3<f32>;
+type Baricentric = Vector3<f32>;
+
+fn barycentric(t: Triangle, p: Point) -> Baricentric {
+    let u = vec3_cross(
+        [(t[2][0]-t[0][0]) as f32, (t[1][0]-t[0][0]) as f32, (t[0][0]-p[0]) as f32],
+        [(t[2][1]-t[0][1]) as f32, (t[1][1]-t[0][1]) as f32, (t[0][1]-p[1]) as f32]);
+    if u[2].abs() < 1.0 {
+        [-1.0, 1.0, 1.0]
+    } else {
+        [1.0-(u[0]+u[1])/u[2], u[1]/u[2], u[0]/u[2]]
+    }
+}
+
+fn triangle(image: &mut Image, t: Triangle, color: Pixel) {
+    let w = image.get_width() as i32;
+    let h = image.get_height() as i32;
+    let screen: Point = [w-1, h-1];
+    let mut bbn = screen;
+    let mut bbx: Point = [0, 0];
+    // compute triangle's bounding box
+    for i in 0..3 {
+        for j in 0..2 {
+            bbn[j] = cmp::max(cmp::min(bbn[j], t[i][j]), 0);
+            bbx[j] = cmp::min(cmp::max(bbx[j], t[i][j]), screen[j]);
+        }
+    }
+    // iterate over bounding box pixels and check barycentric coordinates are within triangle
+    for x in bbn[0]..bbx[0] {
+        for y in bbn[1]..bbx[1] {
+            let coords = barycentric(t, [x, y]);
+            if coords.iter().all(|c| *c >= 0.0) {
+                pixel(image, x as u32, y as u32, color)
+            }
+        }
+    }
+}
+
+fn draw_poly(image: &mut Image, model: &Model) {
+    let w2 = image.get_width()  as f32 / 2.;
+    let h2 = image.get_height() as f32 / 2.;
+    let light: Vector3<f32> = [0.0, 0.0, -1.0];
+    for ref face in &model.faces {
+        let mut world: Triangle3f = [[0.0; 3]; 3];
+        let mut screen: Triangle = [[0; 2]; 3];
+        for i in 0..3 {
+            let ref v = model.verts[face[i] as usize];
+            world[i] = [v.x, v.y, v.z];
+            let x = (v.x+1.)*w2;
+            let y = (v.y+1.)*h2;
+            screen[i] = [x as i32, y as i32];
+        }
+        let normal = vec3_normalized(vec3_cross(vec3_sub(world[2], world[0]), vec3_sub(world[1], world[0])));
+        let intensity = vec3_dot(normal, light);
+        if intensity > 0.0 { // back-face culling
+            let luma = (255.0 * intensity) as u8;
+            triangle(image, screen, Pixel{r: luma, g: luma, b: luma});
         }
     }
 }

@@ -9,5 +9,9 @@ name = "opengl"
 [dependencies.bmp]
 git = "https://github.com/sondrele/rust-bmp"
 
-#[dependencies.image]
+[dependencies.image]
 #git = "https://github.com/PistonDevelopers/image"
+git = "https://github.com/Doom032/image"
+
+[dependencies.vecmath]
+git = "https://github.com/PistonDevelopers/vecmath"

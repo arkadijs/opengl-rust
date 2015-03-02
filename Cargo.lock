@@ -2,11 +2,59 @@
 name = "opengl"
 version = "0.0.1"
 dependencies = [
- "bmp 0.0.6 (git+https://github.com/sondrele/rust-bmp)",
+ "bmp 0.1.0 (git+https://github.com/sondrele/rust-bmp)",
+ "image 0.2.0-alpha.10 (git+https://github.com/Doom032/image)",
+ "vecmath 0.0.5 (git+https://github.com/PistonDevelopers/vecmath)",
 ]
 
 [[package]]
 name = "bmp"
-version = "0.0.6"
-source = "git+https://github.com/sondrele/rust-bmp#a5b7c0c8308e564b60f17b39a216b40523a7740c"
+version = "0.1.0"
+source = "git+https://github.com/sondrele/rust-bmp#1e089924b1f6093fc97be3a5c82e739bb55120e6"
+
+[[package]]
+name = "image"
+version = "0.2.0-alpha.10"
+source = "git+https://github.com/Doom032/image#9bbc40ba339a58c29125e22f9230fdf76e561185"
+dependencies = [
+ "num 0.1.14 (git+https://github.com/rust-lang/num)",
+]
+
+[[package]]
+name = "libc"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "log"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "num"
+version = "0.1.14"
+source = "git+https://github.com/rust-lang/num#7c203e27d3115643c5bdc0d69e819c221f417bc4"
+dependencies = [
+ "rand 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.2.15 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "rand"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "libc 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "rustc-serialize"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "vecmath"
+version = "0.0.5"
+source = "git+https://github.com/PistonDevelopers/vecmath#6284864573fe185f4d87aadfe38d0fc3b2edcd73"
 
