@@ -1,5 +1,6 @@
 #![feature(box_syntax)]
 #![feature(box_patterns)]
+#![feature(collections)]
 #![feature(core)]
 #![feature(old_io)]
 #![feature(old_path)]
@@ -11,7 +12,7 @@ use std::cmp;
 use std::num;
 
 extern crate vecmath;
-use vecmath::{Vector2, Vector3, Matrix3x2, Matrix3, vec3_sub, vec3_cross, vec3_dot, vec3_normalized};
+use vecmath::{Vector2, Vector3, Matrix3, vec3_sub, vec3_cross, vec3_dot, vec3_normalized};
 
 extern crate bmp;
 use bmp::{Image, Pixel, consts};
@@ -115,7 +116,7 @@ fn draw_wireframe(image: &mut Image, model: &Model) {
 }
 
 type Point = Vector2<i32>;
-type Triangle = Matrix3x2<i32>;
+type Triangle = Matrix3<i32>;
 type Triangle3f = Matrix3<f32>;
 type Baricentric = Vector3<f32>;
 
@@ -130,7 +131,7 @@ fn barycentric(t: Triangle, p: Point) -> Baricentric {
     }
 }
 
-fn triangle(image: &mut Image, t: Triangle, color: Pixel) {
+fn triangle(image: &mut Image, t: Triangle, color: Pixel, zbuffer: &mut Vec<u16>) {
     let w = image.get_width() as i32;
     let h = image.get_height() as i32;
     let screen: Point = [w-1, h-1];
@@ -143,36 +144,49 @@ fn triangle(image: &mut Image, t: Triangle, color: Pixel) {
             bbx[j] = cmp::min(cmp::max(bbx[j], t[i][j]), screen[j]);
         }
     }
+    // z-components of triangle vertices for pixel z-coordinate interpolation
+    let zcomp = [t[0][2] as f32, t[1][2] as f32, t[2][2] as f32];
     // iterate over bounding box pixels and check barycentric coordinates are within triangle
-    for x in bbn[0]..bbx[0] {
-        for y in bbn[1]..bbx[1] {
+    for y in bbn[1]..bbx[1] {
+        for x in bbn[0]..bbx[0] {
             let coords = barycentric(t, [x, y]);
             if coords.iter().all(|c| *c >= 0.0) {
-                pixel(image, x as u32, y as u32, color)
+                let z = (vec3_dot(zcomp, coords) + 0.5) as u16;
+                let zi = (y*w+x) as usize;
+                if zbuffer[zi] < z {
+                    zbuffer[zi] = z;
+                    pixel(image, x as u32, y as u32, color);
+                }
             }
         }
     }
 }
 
 fn draw_poly(image: &mut Image, model: &Model) {
-    let w2 = image.get_width()  as f32 / 2.;
-    let h2 = image.get_height() as f32 / 2.;
+    let w = image.get_width();
+    let h = image.get_height();
+    let w2 = w as f32 / 2.;
+    let h2 = h as f32 / 2.;
     let light: Vector3<f32> = [0.0, 0.0, -1.0];
+    let zsize = (w*h) as usize;
+    let mut zbuffer = Vec::with_capacity(zsize);
+    zbuffer.resize(zsize, 0);
     for ref face in &model.faces {
         let mut world: Triangle3f = [[0.0; 3]; 3];
-        let mut screen: Triangle = [[0; 2]; 3];
+        let mut screen: Triangle = [[0; 3]; 3];
         for i in 0..3 {
             let ref v = model.verts[face[i] as usize];
             world[i] = [v.x, v.y, v.z];
             let x = (v.x+1.)*w2;
             let y = (v.y+1.)*h2;
-            screen[i] = [x as i32, y as i32];
+            let z = (v.z+1.)*((std::u16::MAX/2) as f32);
+            screen[i] = [x as i32, y as i32, z as i32];
         }
         let normal = vec3_normalized(vec3_cross(vec3_sub(world[2], world[0]), vec3_sub(world[1], world[0])));
         let intensity = vec3_dot(normal, light);
         if intensity > 0.0 { // back-face culling
             let luma = (255.0 * intensity) as u8;
-            triangle(image, screen, Pixel{r: luma, g: luma, b: luma});
+            triangle(image, screen, Pixel{r: luma, g: luma, b: luma}, &mut zbuffer);
         }
     }
 }

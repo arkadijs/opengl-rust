@@ -9,3 +9,7 @@ Day 1 is complete. Learned tons of nice and not-very-nice things about Rust.
 Day 2 is complete. Adding [PistonDevelopers](https://github.com/PistonDevelopers/) to the game.
 
 <img src="https://raw.githubusercontent.com/arkadijs/opengl-rust/master/renders/day2.png" margin-top="0.5em margin-bottom="0.5em" />
+
+Day 3 is complete. Z-buffering!
+
+<img src="https://raw.githubusercontent.com/arkadijs/opengl-rust/master/renders/day3.png" margin-top="0.5em margin-bottom="0.5em" />
