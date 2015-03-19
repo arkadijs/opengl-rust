@@ -2,7 +2,6 @@
 #![feature(box_patterns)]
 #![feature(collections)]
 #![feature(core)]
-#![feature(old_io)]
 #![feature(old_path)]
 #![feature(str_words)]
 
@@ -18,7 +17,7 @@ extern crate bmp;
 use bmp::{Image, Pixel, consts};
 
 extern crate "image" as pimage;
-use pimage::{GenericImage, RgbImage};
+use pimage::RgbImage;
 
 fn main() {
     let box ref model = box load("models/african_head");
@@ -78,12 +77,15 @@ struct Model {
     diffuse: Box<RgbImage>
 }
 
-use std::old_io::BufferedReader;
-use std::old_io::File;
+use std::io::BufReader;
+use std::io::BufRead;
+use std::path::Path;
+use std::fs::File;
+use std::old_path::Path as OldPath;
 
 fn load(name: &str) -> Model {
     let obj_file = format!("{}.obj", name);
-    let mut file = BufferedReader::new(File::open(&Path::new(&obj_file)));
+    let file = BufReader::new(File::open(&Path::new(&obj_file)).unwrap_or_else(|err| { panic!("Cannot open {}: {}", obj_file, err) }));
     fn _idx(s: &str) -> usize { num::from_str_radix::<usize>(s, 10).map(|x| x-1).unwrap_or(0) };
     fn _f32(s: &str) -> f32   { num::from_str_radix::<f32>  (s, 10).unwrap_or(0.) };
     fn _mvec(s: &str) -> Vector2<usize> {
@@ -109,7 +111,7 @@ fn load(name: &str) -> Model {
         }
     }
     let diffuse_file = format!("{}_diffuse.png", name);
-    let diffuse = box match pimage::open(&Path::new(&diffuse_file)) {
+    let diffuse = box match pimage::open(&OldPath::new(&diffuse_file)) {
         Err(err) => panic!("I/O error reading {}: {}", diffuse_file, err),
         Ok(img) => img.to_rgb()
     };
@@ -124,7 +126,6 @@ fn draw_wireframe(image: &mut Image, model: &Model) {
         for i in 0..3 {
             let ref v0 = model.verts[face[i][0]];
             let ref v1 = model.verts[face[if i < 2 {i+1} else {0}][0]];
-            //println!("v0 = {:?}; v1 = {:?}", v0, v1);
             let x0 = (v0.x+1.)*w2;
             let y0 = (v0.y+1.)*h2;
             let x1 = (v1.x+1.)*w2;
@@ -168,6 +169,9 @@ fn triangle(image: &mut Image, t: Triangle, uv: Trianglet, intensity: f32, diffu
     }
     // z-components of triangle vertices for pixel z-coordinate interpolation
     let zcomp = [t[0][2] as f32, t[1][2] as f32, t[2][2] as f32];
+    // u,v texture coordinates for interpolation
+    let ucomp = [uv[0][0], uv[1][0], uv[2][0]];
+    let vcomp = [uv[0][1], uv[1][1], uv[2][1]];
     // scale diffuse texture components by intensity
     let _scale = |comp: u8| { (comp as f32 * intensity) as u8 };
     // iterate over bounding box pixels and check barycentric coordinates are within triangle
@@ -179,9 +183,6 @@ fn triangle(image: &mut Image, t: Triangle, uv: Trianglet, intensity: f32, diffu
                 let zi = (y*w+x) as usize;
                 if zbuffer[zi] < z {
                     zbuffer[zi] = z;
-                    // interpolate texture coords
-                    let ucomp = [uv[0][0], uv[1][0], uv[2][0]];
-                    let vcomp = [uv[0][1], uv[1][1], uv[2][1]];
                     let u = dw * vec3_dot(ucomp, coords);
                     let v = dh * vec3_dot(vcomp, coords);
                     let c = diffuse.get_pixel(u as u32, (dh - v - 1.) as u32);
