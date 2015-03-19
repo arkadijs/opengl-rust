@@ -13,3 +13,7 @@ Day 2 is complete. Adding [PistonDevelopers](https://github.com/PistonDevelopers
 Day 3 is complete. Z-buffering!
 
 <img src="https://raw.githubusercontent.com/arkadijs/opengl-rust/master/renders/day3.png" margin-top="0.5em margin-bottom="0.5em" />
+
+Day 4 is complete. Diffuse texture.
+
+<img src="https://raw.githubusercontent.com/arkadijs/opengl-rust/master/renders/day4.png" margin-top="0.5em margin-bottom="0.5em" />
