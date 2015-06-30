@@ -1,14 +1,11 @@
-#![feature(box_syntax)]
-#![feature(box_patterns)]
-#![feature(collections)]
-#![feature(core)]
-#![feature(old_path)]
-#![feature(str_words)]
+#![feature(box_syntax, box_patterns, convert, float_from_str_radix, slice_patterns, vec_resize)]
+#![allow(dead_code)]
 
-extern crate core;
-use core::num::*;
 use std::cmp;
-use std::num;
+use std::fs::File;
+use std::io::BufReader;
+use std::io::BufRead;
+use std::path::Path;
 
 extern crate vecmath;
 use vecmath::{Vector2, Vector3, Matrix3, Matrix3x2, vec3_sub, vec3_cross, vec3_dot, vec3_normalized};
@@ -16,7 +13,7 @@ use vecmath::{Vector2, Vector3, Matrix3, Matrix3x2, vec3_sub, vec3_cross, vec3_d
 extern crate bmp;
 use bmp::{Image, Pixel, consts};
 
-extern crate "image" as pimage;
+extern crate image as pimage;
 use pimage::RgbImage;
 
 fn main() {
@@ -65,6 +62,7 @@ struct Vec3f {
     x: f32, y: f32, z: f32
 }
 
+#[derive(Debug)]
 struct UV {
     u: f32, v: f32
 }
@@ -77,19 +75,13 @@ struct Model {
     diffuse: Box<RgbImage>
 }
 
-use std::io::BufReader;
-use std::io::BufRead;
-use std::path::Path;
-use std::fs::File;
-use std::old_path::Path as OldPath;
-
 fn load(name: &str) -> Model {
     let obj_file = format!("{}.obj", name);
     let file = BufReader::new(File::open(&Path::new(&obj_file)).unwrap_or_else(|err| { panic!("Cannot open {}: {}", obj_file, err) }));
-    fn _idx(s: &str) -> usize { num::from_str_radix::<usize>(s, 10).map(|x| x-1).unwrap_or(0) };
-    fn _f32(s: &str) -> f32   { num::from_str_radix::<f32>  (s, 10).unwrap_or(0.) };
+    fn _idx(s: &str) -> usize { usize::from_str_radix(s, 10).map(|x| x-1).unwrap_or(0) };
+    fn _f32(s: &str) -> f32   {   f32::from_str_radix(s, 10).unwrap_or(0.) };
     fn _mvec(s: &str) -> Vector2<usize> {
-        let mut indices = s.splitn(2, '/').take(2).map(|i| _idx(i));
+        let mut indices = s.splitn(3, '/').take(2).map(|i| _idx(i));
         // [0] is vertex index into "v"/verts, [1] is diffuse texture coordinate index into "vt"/texture
         [indices.next().unwrap_or(0), indices.next().unwrap_or(0)]
         // s.splitn(1, '/').next().and_then(|_1| num::from_str_radix::<usize>(_1, 10).ok()).map(|f| f-1).unwrap_or(0)
@@ -101,9 +93,9 @@ fn load(name: &str) -> Model {
         match maybe {
             Err(err) => panic!("I/O error reading {}: {}", obj_file, err),
             Ok(line) => {
-                match line.words().collect::<Vec<_>>().as_slice() {
+                match line.split_whitespace().collect::<Vec<_>>().as_slice() {
                     ["v", x, y, z]    => verts.push(Vec3f{ x: _f32(x), y: _f32(y), z: _f32(z) }),
-                    ["vt", u, v, _]      => texture.push(UV{ u: _f32(u), v: _f32(v) }),
+                    ["vt", u, v, _]   => texture.push(UV{ u: _f32(u), v: _f32(v) }),
                     ["f", _1, _2, _3] => faces.push([_mvec(_1), _mvec(_2), _mvec(_3)]),
                     _ => () ,
                 }
@@ -111,7 +103,7 @@ fn load(name: &str) -> Model {
         }
     }
     let diffuse_file = format!("{}_diffuse.png", name);
-    let diffuse = box match pimage::open(&OldPath::new(&diffuse_file)) {
+    let diffuse = box match pimage::open(&Path::new(&diffuse_file)) {
         Err(err) => panic!("I/O error reading {}: {}", diffuse_file, err),
         Ok(img) => img.to_rgb()
     };
@@ -122,7 +114,6 @@ fn draw_wireframe(image: &mut Image, model: &Model) {
     let w2 = image.get_width()  as f32 / 2.;
     let h2 = image.get_height() as f32 / 2.;
     for ref face in &model.faces {
-        //println!("face = {:?}", face);
         for i in 0..3 {
             let ref v0 = model.verts[face[i][0]];
             let ref v1 = model.verts[face[if i < 2 {i+1} else {0}][0]];
@@ -207,8 +198,7 @@ fn draw_poly(image: &mut Image, model: &Model) {
         let mut screen: Triangle = [[0; 3]; 3];
         let mut texture: Trianglet = [[0.; 2]; 3];
         for i in 0..3 {
-            let ref indices = face[i]; // compiler bug?
-            // face[i][0] results in: thread '<main>' panicked at 'assertion failed: index < self.len()', /build/buildd/rust-nightly-201503020408~1576142~trusty/src/libcore/slice.rs:499
+            let ref indices = face[i];
             let ref v = model.verts[indices[0]]; // [0] index into 3d vertex coords
             world[i] = [v.x, v.y, v.z];
             let x = (v.x+1.)*w2;
