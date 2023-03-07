@@ -12,7 +12,7 @@ extern crate vecmath;
 use vecmath::{Vector2, Vector3, Matrix3, Matrix3x2, Matrix4,
     mat4_id,
     row_mat4_mul, row_mat4_transform,
-    vec3_sub, vec3_cross, vec3_dot, vec3_normalized};
+    vec3_scale, vec3_sub, vec3_cross, vec3_dot, vec3_normalized};
 
 extern crate bmp;
 use bmp::{Image, Pixel, consts};
@@ -61,19 +61,9 @@ fn line(x0: u32, y0: u32, x1: u32, y1: u32, image: &mut Image, color: Pixel) {
     }
 }
 
-#[derive(Debug)]
-struct Vec3f {
-    x: f32, y: f32, z: f32
-}
-
-#[derive(Debug)]
-struct UV {
-    u: f32, v: f32
-}
-
 struct Model {
-    verts: Vec<Vec3f>,
-    texture: Vec<UV>,
+    verts: Vec<Vector3<f32>>,
+    texture: Vec<Vector2<f32>>,
     // a list of triangles, each vertex containing two indices: into `verts` and `texture`
     faces: Vec<Vector3<Vector2<usize>>>,
     diffuse: Box<RgbImage>
@@ -98,8 +88,8 @@ fn load(name: &str) -> Model {
             Err(err) => panic!("I/O error reading {}: {}", obj_file, err),
             Ok(line) => {
                 match line.split_whitespace().collect::<Vec<_>>().as_slice() {
-                    ["v", x, y, z]    => verts.push(Vec3f{ x: _f32(x), y: _f32(y), z: _f32(z) }),
-                    ["vt", u, v, _]   => texture.push(UV{ u: _f32(u), v: _f32(v) }),
+                    ["v", x, y, z]    => verts.push([_f32(x), _f32(y), _f32(z)]),
+                    ["vt", u, v, _]   => texture.push([_f32(u), _f32(v)]),
                     ["f", _1, _2, _3] => faces.push([_mvec(_1), _mvec(_2), _mvec(_3)]),
                     _ => () ,
                 }
@@ -121,10 +111,10 @@ fn draw_wireframe(image: &mut Image, model: &Model) {
         for i in 0..3 {
             let ref v0 = model.verts[face[i][0]];
             let ref v1 = model.verts[face[if i < 2 {i+1} else {0}][0]];
-            let x0 = (v0.x+1.)*w2;
-            let y0 = (v0.y+1.)*h2;
-            let x1 = (v1.x+1.)*w2;
-            let y1 = (v1.y+1.)*h2;
+            let x0 = (v0[0]+1.)*w2;
+            let y0 = (v0[1]+1.)*h2;
+            let x1 = (v1[0]+1.)*w2;
+            let y1 = (v1[1]+1.)*h2;
             line(x0 as u32, y0 as u32, x1 as u32, y1 as u32, image, consts::WHITE);
         }
     }
@@ -232,12 +222,11 @@ fn draw_poly(image: &mut Image, model: &Model) {
         let mut texture: Trianglet = [[0.; 2]; 3];
         for i in 0..3 {
             let ref indices = face[i];
-            let ref v = model.verts[indices[0]]; // [0] index into 3d vertex coords
-            world[i] = [v.x, v.y, v.z];
-            let t = row_mat4_transform(transform, [v.x, v.y, v.z, 1.]);
-            screen[i] = [t[0]/t[3], t[1]/t[3], t[2]/t[3]].map(|n| n as i32);
-            let ref t = model.texture[indices[1]]; // [1] index into 2d texture coords
-            texture[i] = [t.u, t.v];
+            let v = model.verts[indices[0]]; // [0] index into 3d vertex coords
+            world[i] = v;
+            let t = row_mat4_transform(transform, [v[0], v[1], v[2], 1.]);
+            screen[i] = vec3_scale([t[0], t[1], t[2]], 1./t[3]).map(|n| n as i32);
+            texture[i] = model.texture[indices[1]]; // [1] index into 2d texture coords
         }
         let normal = vec3_normalized(vec3_cross(vec3_sub(world[2], world[0]), vec3_sub(world[1], world[0])));
         let intensity = vec3_dot(normal, light);
