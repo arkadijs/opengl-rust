@@ -1,16 +1,12 @@
 [package]
-name = "opengl"
-version = "0.0.1"
+name = "render"
+version = "0.0.4"
 authors = [ "Arkadi Shishlov <arkadi.shishlov@gmail.com>" ]
 
 [[bin]]
-name = "opengl"
+name = "render"
 
-[dependencies.bmp]
-git = "https://github.com/sondrele/rust-bmp"
-
-[dependencies.image]
-git = "https://github.com/PistonDevelopers/image"
-
-[dependencies.vecmath]
-git = "https://github.com/PistonDevelopers/vecmath"
+[dependencies]
+bmp = "0.5.0"
+image = "0.24.5"
+vecmath = "1.0.0"

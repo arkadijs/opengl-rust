@@ -1,4 +1,4 @@
-#![feature(box_syntax, box_patterns, convert, float_from_str_radix, slice_patterns, vec_resize)]
+#![feature(box_syntax, box_patterns)]
 #![allow(dead_code)]
 
 use std::cmp;
@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::BufRead;
 use std::path::Path;
+use std::str::FromStr;
 
 extern crate vecmath;
 use vecmath::{Vector2, Vector3, Matrix3, Matrix3x2, vec3_sub, vec3_cross, vec3_dot, vec3_normalized};
@@ -20,7 +21,7 @@ fn main() {
     let box ref model = box load("models/african_head");
     let mut image = Image::new(500, 500);
     draw_poly(&mut image, model);
-    let bmp = "/tmp/opengl.bmp";
+    let bmp = "render.bmp";
     let _ = image.save(bmp).unwrap_or_else(|e| {
         panic!("Failed to save {}: {}", bmp, e)
     });
@@ -78,14 +79,14 @@ struct Model {
 fn load(name: &str) -> Model {
     let obj_file = format!("{}.obj", name);
     let file = BufReader::new(File::open(&Path::new(&obj_file)).unwrap_or_else(|err| { panic!("Cannot open {}: {}", obj_file, err) }));
-    fn _idx(s: &str) -> usize { usize::from_str_radix(s, 10).map(|x| x-1).unwrap_or(0) };
-    fn _f32(s: &str) -> f32   {   f32::from_str_radix(s, 10).unwrap_or(0.) };
+    fn _idx(s: &str) -> usize { usize::from_str(s).map(|x| x-1).unwrap_or(0) }
+    fn _f32(s: &str) -> f32   {   f32::from_str(s).unwrap_or(0.) }
     fn _mvec(s: &str) -> Vector2<usize> {
         let mut indices = s.splitn(3, '/').take(2).map(|i| _idx(i));
         // [0] is vertex index into "v"/verts, [1] is diffuse texture coordinate index into "vt"/texture
         [indices.next().unwrap_or(0), indices.next().unwrap_or(0)]
         // s.splitn(1, '/').next().and_then(|_1| num::from_str_radix::<usize>(_1, 10).ok()).map(|f| f-1).unwrap_or(0)
-    };
+    }
     let mut verts = vec![];
     let mut faces = vec![];
     let mut texture = vec![];
@@ -105,7 +106,7 @@ fn load(name: &str) -> Model {
     let diffuse_file = format!("{}_diffuse.png", name);
     let diffuse = box match pimage::open(&Path::new(&diffuse_file)) {
         Err(err) => panic!("I/O error reading {}: {}", diffuse_file, err),
-        Ok(img) => img.to_rgb()
+        Ok(img) => img.into_rgb8()
     };
     Model{ verts: verts, faces: faces, texture: texture, diffuse: diffuse }
 }
