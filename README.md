@@ -17,3 +17,7 @@ Day 3 is complete. Z-buffering!
 Day 4 is complete. Diffuse texture.
 
 ![Day 4](renders/day4.png)
+
+Day 5 is complete. Perspective.
+
+![Day 5](renders/day5.png)

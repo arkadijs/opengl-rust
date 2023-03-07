@@ -9,7 +9,10 @@ use std::path::Path;
 use std::str::FromStr;
 
 extern crate vecmath;
-use vecmath::{Vector2, Vector3, Matrix3, Matrix3x2, vec3_sub, vec3_cross, vec3_dot, vec3_normalized};
+use vecmath::{Vector2, Vector3, Matrix3, Matrix3x2, Matrix4,
+    mat4_id,
+    row_mat4_mul, row_mat4_transform,
+    vec3_sub, vec3_cross, vec3_dot, vec3_normalized};
 
 extern crate bmp;
 use bmp::{Image, Pixel, consts};
@@ -185,15 +188,44 @@ fn triangle(image: &mut Image, t: Triangle, uv: Trianglet, intensity: f32, diffu
     }
 }
 
+fn make_viewport(x: u32, y: u32, w: u32, h: u32, depth: u32) -> Matrix4<f32> {
+    let mut viewport: Matrix4<f32> = mat4_id();
+    let w2 = (w as f32)/2.;
+    let h2 = (h as f32)/2.;
+    let d2 = (depth as f32)/2.;
+
+    viewport[0][3] = (x as f32) + w2;
+    viewport[1][3] = (y as f32) + h2;
+    viewport[2][3] = d2;
+
+    viewport[0][0] = w2;
+    viewport[1][1] = h2;
+    viewport[2][2] = d2;
+
+    viewport
+}
+
+fn make_projection(camera: Vector3<f32>) -> Matrix4<f32> {
+    let mut projection: Matrix4<f32> = mat4_id();
+    projection[3][2] = -1./camera[2];
+
+    projection
+}
+
 fn draw_poly(image: &mut Image, model: &Model) {
     let w = image.get_width();
     let h = image.get_height();
-    let w2 = w as f32 / 2.;
-    let h2 = h as f32 / 2.;
+
+    let camera: Vector3<f32> = [0., 0., 3.];
     let light: Vector3<f32> = [0., 0., -1.];
+    let viewport: Matrix4<f32> = make_viewport(w/8, h/8, w*3/4, h*3/4, 255);
+    let projection: Matrix4<f32> = make_projection(camera);
+    let transform = row_mat4_mul(viewport, projection);
+
     let zsize = (w*h) as usize;
     let mut zbuffer = Vec::with_capacity(zsize);
     zbuffer.resize(zsize, 0);
+
     for ref face in &model.faces {
         let mut world: Trianglef = [[0.; 3]; 3];
         let mut screen: Triangle = [[0; 3]; 3];
@@ -202,10 +234,8 @@ fn draw_poly(image: &mut Image, model: &Model) {
             let ref indices = face[i];
             let ref v = model.verts[indices[0]]; // [0] index into 3d vertex coords
             world[i] = [v.x, v.y, v.z];
-            let x = (v.x+1.)*w2;
-            let y = (v.y+1.)*h2;
-            let z = (v.z+1.)*((std::u16::MAX/2) as f32);
-            screen[i] = [x as i32, y as i32, z as i32];
+            let t = row_mat4_transform(transform, [v.x, v.y, v.z, 1.]);
+            screen[i] = [t[0]/t[3], t[1]/t[3], t[2]/t[3]].map(|n| n as i32);
             let ref t = model.texture[indices[1]]; // [1] index into 2d texture coords
             texture[i] = [t.u, t.v];
         }
