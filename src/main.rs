@@ -10,8 +10,8 @@ use std::str::FromStr;
 
 extern crate vecmath;
 use vecmath::{
-    mat4_id, row_mat4_mul, row_mat4_transform, vec3_cross, vec3_dot, vec3_normalized, vec3_scale,
-    vec3_sub, Matrix3, Matrix3x2, Matrix4, Vector2, Vector3,
+    mat4_id, row_mat4_mul, row_mat4_transform, vec3_cross, vec3_dot, vec3_len, vec3_normalized,
+    vec3_scale, vec3_sub, Matrix3, Matrix3x2, Matrix4, Vector2, Vector3,
 };
 
 extern crate bmp;
@@ -75,6 +75,7 @@ fn line(x0: u32, y0: u32, x1: u32, y1: u32, image: &mut Image, color: Pixel) {
 
 struct Model {
     verts: Vec<Vector3<f32>>,
+    normals: Vec<Vector3<f32>>,
     texture: Vec<Vector2<f32>>,
     // a list of triangles, each vertex containing two indices: into `verts` and `texture`
     faces: Vec<Vector3<Vector2<usize>>>,
@@ -100,6 +101,7 @@ fn load_model(name: &str) -> Model {
         // s.splitn(1, '/').next().and_then(|_1| usize::from_str::<usize>(_1).ok()).map(|f| f-1).unwrap_or(0)
     }
     let mut verts = vec![];
+    let mut normals = vec![];
     let mut faces = vec![];
     let mut texture = vec![];
     for maybe in file.lines() {
@@ -107,6 +109,7 @@ fn load_model(name: &str) -> Model {
             Err(err) => panic!("I/O error reading {}: {}", obj_file, err),
             Ok(line) => match line.split_whitespace().collect::<Vec<_>>().as_slice() {
                 ["v", x, y, z] => verts.push([_f32(x), _f32(y), _f32(z)]),
+                ["vn", x, y, z] => normals.push([_f32(x), _f32(y), _f32(z)]),
                 ["vt", u, v, _] => texture.push([_f32(u), _f32(v)]),
                 ["f", _1, _2, _3] => faces.push([_mvec(_1), _mvec(_2), _mvec(_3)]),
                 _ => (),
@@ -120,6 +123,7 @@ fn load_model(name: &str) -> Model {
     };
     Model {
         verts,
+        normals,
         faces,
         texture,
         diffuse,
@@ -232,6 +236,20 @@ fn triangle(
     }
 }
 
+/*
+  Object coordinates
+    * Model matrix =>
+  World cordinates
+    * View matrix (camera) =>
+  Eye coordinates
+    * Projection matrix (perspective) =>
+  Clip coordinates
+    * Viewport matrix =>
+  Screen coordinates with Z-buffer
+
+  v' = viewport * projection * view * model * v
+*/
+
 fn make_viewport(x: u32, y: u32, w: u32, h: u32, depth: u32) -> Matrix4<f32> {
     let mut viewport: Matrix4<f32> = mat4_id();
     let w2 = (w as f32) / 2.;
@@ -249,25 +267,45 @@ fn make_viewport(x: u32, y: u32, w: u32, h: u32, depth: u32) -> Matrix4<f32> {
     viewport
 }
 
-fn make_projection(camera: Vector3<f32>) -> Matrix4<f32> {
+fn make_projection(camera: Vector3<f32>, center: Vector3<f32>) -> Matrix4<f32> {
     let mut projection: Matrix4<f32> = mat4_id();
-    projection[3][2] = -1. / camera[2];
+    projection[3][2] = -1. / vec3_len(vec3_sub(camera, center));
 
     projection
+}
+
+fn make_modelview(camera: Vector3<f32>, center: Vector3<f32>, up: Vector3<f32>) -> Matrix4<f32> {
+    let z = vec3_normalized(vec3_sub(camera, center));
+    let x = vec3_normalized(vec3_cross(up, z));
+    let y = vec3_normalized(vec3_cross(z, x));
+    let mut inverse = mat4_id();
+    let mut translation = mat4_id();
+    for i in 0..3 {
+        inverse[0][i] = x[i];
+        inverse[1][i] = y[i];
+        inverse[2][i] = z[i];
+        translation[i][3] = -center[i]
+    }
+    let modelview = row_mat4_mul(inverse, translation);
+
+    modelview
 }
 
 fn draw_poly(image: &mut Image, model: &Model) {
     let w = image.get_width();
     let h = image.get_height();
 
-    let camera: Vector3<f32> = [0., 0., 3.];
+    let center: Vector3<f32> = [0., 0., 0.];
+    let camera: Vector3<f32> = [1., 1., 3.];
     let light: Vector3<f32> = [0., 0., -1.];
-    let viewport: Matrix4<f32> = make_viewport(w / 8, h / 8, w * 3 / 4, h * 3 / 4, 255);
-    let projection: Matrix4<f32> = make_projection(camera);
-    let transform = row_mat4_mul(viewport, projection);
+
+    let viewport: Matrix4<f32> = make_viewport(w / 8, h / 8, w * 3 / 4, h * 3 / 4, u16::MAX as u32);
+    let projection: Matrix4<f32> = make_projection(camera, center);
+    let modelview: Matrix4<f32> = make_modelview(camera, center, [0., 1., 0.]);
+    let transform = row_mat4_mul(row_mat4_mul(viewport, projection), modelview);
 
     let zsize = (w * h) as usize;
-    let mut zbuffer = Vec::with_capacity(zsize);
+    let mut zbuffer = Vec::<u16>::with_capacity(zsize);
     zbuffer.resize(zsize, 0);
 
     for ref face in &model.faces {
