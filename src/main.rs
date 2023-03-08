@@ -77,8 +77,8 @@ struct Model {
     verts: Vec<Vector3<f32>>,
     normals: Vec<Vector3<f32>>,
     texture: Vec<Vector2<f32>>,
-    // a list of triangles, each vertex containing two indices: into `verts` and `texture`
-    faces: Vec<Vector3<Vector2<usize>>>,
+    // a list of triangles, each vertex containing three indices: into `verts`, `texture`, `normals`
+    faces: Vec<Vector3<Vector3<usize>>>,
     diffuse: Box<RgbImage>,
 }
 
@@ -94,10 +94,16 @@ fn load_model(name: &str) -> Model {
     fn _f32(s: &str) -> f32 {
         f32::from_str(s).unwrap_or(0.)
     }
-    fn _mvec(s: &str) -> Vector2<usize> {
-        let mut indices = s.splitn(3, '/').take(2).map(|i| _idx(i));
-        // [0] is vertex index into "v"/verts, [1] is diffuse texture coordinate index into "vt"/texture
-        [indices.next().unwrap_or(0), indices.next().unwrap_or(0)]
+    fn _mvec(s: &str) -> Vector3<usize> {
+        let mut indices = s.splitn(3, '/').take(3).map(|i| _idx(i));
+        // [0] is vertex index into "v"/verts
+        // [1] is diffuse texture coordinate index into "vt"/texture
+        // [2] is normals index into "vn"/normals
+        [
+            indices.next().unwrap_or(0),
+            indices.next().unwrap_or(0),
+            indices.next().unwrap_or(0),
+        ]
         // s.splitn(1, '/').next().and_then(|_1| usize::from_str::<usize>(_1).ok()).map(|f| f-1).unwrap_or(0)
     }
     let mut verts = vec![];
@@ -183,7 +189,7 @@ fn triangle(
     image: &mut Image,
     t: Triangle,
     uv: Trianglet,
-    intensity: f32,
+    intensity: Vector3<f32>,
     diffuse: &RgbImage,
     zbuffer: &mut Vec<u16>,
 ) {
@@ -206,8 +212,6 @@ fn triangle(
     // u,v texture coordinates for interpolation
     let ucomp = [uv[0][0], uv[1][0], uv[2][0]];
     let vcomp = [uv[0][1], uv[1][1], uv[2][1]];
-    // scale diffuse texture components by intensity
-    let _scale = |comp: u8| (comp as f32 * intensity) as u8;
     // iterate over bounding box pixels and check barycentric coordinates are within triangle
     for y in bbn[1]..bbx[1] {
         for x in bbn[0]..bbx[0] {
@@ -219,15 +223,17 @@ fn triangle(
                     zbuffer[zi] = z;
                     let u = dw * vec3_dot(ucomp, coords);
                     let v = dh * vec3_dot(vcomp, coords);
-                    let c = diffuse.get_pixel(u as u32, (dh - v - 1.) as u32);
+                    // scale diffuse texture components by interpolated intensity
+                    let _scale = |comp: u8| (comp as f32 * vec3_dot(intensity, coords)) as u8;
+                    let color = diffuse.get_pixel(u as u32, (dh - v - 1.) as u32);
                     pixel(
                         image,
                         x as u32,
                         y as u32,
                         Pixel {
-                            r: _scale(c[0]),
-                            g: _scale(c[1]),
-                            b: _scale(c[2]),
+                            r: _scale(color[0]),
+                            g: _scale(color[1]),
+                            b: _scale(color[2]),
                         },
                     );
                 }
@@ -297,7 +303,7 @@ fn draw_poly(image: &mut Image, model: &Model) {
 
     let center: Vector3<f32> = [0., 0., 0.];
     let camera: Vector3<f32> = [1., 1., 3.];
-    let light: Vector3<f32> = [0., 0., -1.];
+    let light: Vector3<f32> = vec3_normalized([1., -1., 1.]);
 
     let viewport: Matrix4<f32> = make_viewport(w / 8, h / 8, w * 3 / 4, h * 3 / 4, u16::MAX as u32);
     let projection: Matrix4<f32> = make_projection(camera, center);
@@ -312,6 +318,7 @@ fn draw_poly(image: &mut Image, model: &Model) {
         let mut world: Trianglef = [[0.; 3]; 3];
         let mut screen: Triangle = [[0; 3]; 3];
         let mut texture: Trianglet = [[0.; 2]; 3];
+        let mut intensity: Vector3<f32> = [0.; 3];
         for i in 0..3 {
             let ref indices = face[i];
             let v = model.verts[indices[0]]; // [0] index into 3d vertex coords
@@ -319,22 +326,15 @@ fn draw_poly(image: &mut Image, model: &Model) {
             let t = row_mat4_transform(transform, [v[0], v[1], v[2], 1.]);
             screen[i] = vec3_scale([t[0], t[1], t[2]], 1. / t[3]).map(|n| n as i32);
             texture[i] = model.texture[indices[1]]; // [1] index into 2d texture coords
+            intensity[i] = vec3_dot(model.normals[indices[2]], light); // [2] index into 3d vertex normal
         }
-        let normal = vec3_normalized(vec3_cross(
-            vec3_sub(world[2], world[0]),
-            vec3_sub(world[1], world[0]),
-        ));
-        let intensity = vec3_dot(normal, light);
-        // back-face culling
-        if intensity > 0. {
-            triangle(
-                image,
-                screen,
-                texture,
-                intensity,
-                &model.diffuse,
-                &mut zbuffer,
-            );
-        }
+        triangle(
+            image,
+            screen,
+            texture,
+            intensity,
+            &model.diffuse,
+            &mut zbuffer,
+        );
     }
 }

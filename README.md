@@ -21,3 +21,7 @@ Day 4 is complete. Diffuse texture.
 Day 5 is complete. Perspective.
 
 ![Day 5](renders/day5.png)
+
+Day 6 is complete. Camera and light.
+
+![Day 6](renders/day6.png)
