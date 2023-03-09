@@ -5,13 +5,15 @@ use std::cmp;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::ops::Add;
+use std::ops::Mul;
 use std::path::Path;
 use std::str::FromStr;
 
 extern crate vecmath;
 use vecmath::{
-    mat4_id, row_mat4_mul, row_mat4_transform, vec3_cross, vec3_dot, vec3_len, vec3_normalized,
-    vec3_scale, vec3_sub, Matrix3, Matrix3x2, Matrix4, Vector2, Vector3,
+    col_mat3x2_row, mat4_id, row_mat4_mul, row_mat4_transform, vec2_mul, vec3_cross, vec3_dot,
+    vec3_len, vec3_normalized, vec3_scale, vec3_sub, Matrix3, Matrix3x2, Matrix4, Vector2, Vector3,
 };
 
 extern crate bmp;
@@ -30,7 +32,7 @@ fn main() {
         .unwrap_or_else(|e| panic!("Failed to save {}: {}", bmp, e));
 }
 
-fn pixel(image: &mut Image, x: u32, y: u32, val: Pixel) {
+fn draw_pixel(image: &mut Image, x: u32, y: u32, val: Pixel) {
     let w = image.get_width();
     let h = image.get_height();
     if x < w && y < h {
@@ -38,7 +40,7 @@ fn pixel(image: &mut Image, x: u32, y: u32, val: Pixel) {
     }
 }
 
-fn line(x0: u32, y0: u32, x1: u32, y1: u32, image: &mut Image, color: Pixel) {
+fn draw_line(x0: u32, y0: u32, x1: u32, y1: u32, image: &mut Image, color: Pixel) {
     //println!("{} {} -> {} {}", x0, y0, x1, y1);
     let dx = x1 as i32 - x0 as i32;
     let dy = y1 as i32 - y0 as i32;
@@ -61,9 +63,9 @@ fn line(x0: u32, y0: u32, x1: u32, y1: u32, image: &mut Image, color: Pixel) {
     let mut q = q0 as i32;
     for p in p0..(p1 + 1) {
         if !swap {
-            pixel(image, p, q as u32, color)
+            draw_pixel(image, p, q as u32, color)
         } else {
-            pixel(image, q as u32, p, color)
+            draw_pixel(image, q as u32, p, color)
         }
         q_err += q_err_add;
         if q_err > dp {
@@ -147,7 +149,7 @@ fn draw_wireframe(image: &mut Image, model: &Model) {
             let y0 = (v0[1] + 1.) * h2;
             let x1 = (v1[0] + 1.) * w2;
             let y1 = (v1[1] + 1.) * h2;
-            line(
+            draw_line(
                 x0 as u32,
                 y0 as u32,
                 x1 as u32,
@@ -185,7 +187,43 @@ fn barycentric(t: Triangle, p: Point) -> Baricentric {
     }
 }
 
-fn triangle(
+pub fn col_mat3x2_mul_vec3<T>(mat: Matrix3x2<T>, a: Vector3<T>) -> Vector2<T>
+where
+    T: Copy + Add<T, Output = T> + Mul<T, Output = T>,
+{
+    [
+        vec3_dot(col_mat3x2_row(mat, 0), a),
+        vec3_dot(col_mat3x2_row(mat, 1), a),
+    ]
+}
+
+fn fragment_shader(
+    barycentric_coords: Vector3<f32>,
+    uv: Trianglet,
+    intensity: Vector3<f32>,
+    diffuse: &RgbImage,
+) -> (Pixel, bool) {
+    let dw = diffuse.width() as f32;
+    let dh = diffuse.height() as f32;
+
+    let uv_interpolated = vec2_mul(col_mat3x2_mul_vec3(uv, barycentric_coords), [dw, dh]);
+    // scale diffuse texture components by interpolated intensity
+    let _intensity = vec3_dot(intensity, barycentric_coords);
+    let _scale = |comp: u8| (comp as f32 * _intensity) as u8;
+    let color = diffuse.get_pixel(
+        uv_interpolated[0] as u32,
+        (dh - uv_interpolated[1] - 1.) as u32,
+    );
+    let pixel = Pixel {
+        r: _scale(color[0]),
+        g: _scale(color[1]),
+        b: _scale(color[2]),
+    };
+
+    (pixel, false)
+}
+
+fn draw_triangle(
     image: &mut Image,
     t: Triangle,
     uv: Trianglet,
@@ -193,8 +231,6 @@ fn triangle(
     diffuse: &RgbImage,
     zbuffer: &mut Vec<u16>,
 ) {
-    let dw = diffuse.width() as f32;
-    let dh = diffuse.height() as f32;
     let w = image.get_width() as i32;
     let h = image.get_height() as i32;
     let screen: Point = [w - 1, h - 1];
@@ -209,9 +245,6 @@ fn triangle(
     }
     // z-components of triangle vertices for pixel z-coordinate interpolation
     let zcomp = [t[0][2] as f32, t[1][2] as f32, t[2][2] as f32];
-    // u,v texture coordinates for interpolation
-    let ucomp = [uv[0][0], uv[1][0], uv[2][0]];
-    let vcomp = [uv[0][1], uv[1][1], uv[2][1]];
     // iterate over bounding box pixels and check barycentric coordinates are within triangle
     for y in bbn[1]..bbx[1] {
         for x in bbn[0]..bbx[0] {
@@ -220,22 +253,11 @@ fn triangle(
                 let z = (vec3_dot(zcomp, coords) + 0.5) as u16;
                 let zi = (y * w + x) as usize;
                 if zbuffer[zi] < z {
-                    zbuffer[zi] = z;
-                    let u = dw * vec3_dot(ucomp, coords);
-                    let v = dh * vec3_dot(vcomp, coords);
-                    // scale diffuse texture components by interpolated intensity
-                    let _scale = |comp: u8| (comp as f32 * vec3_dot(intensity, coords)) as u8;
-                    let color = diffuse.get_pixel(u as u32, (dh - v - 1.) as u32);
-                    pixel(
-                        image,
-                        x as u32,
-                        y as u32,
-                        Pixel {
-                            r: _scale(color[0]),
-                            g: _scale(color[1]),
-                            b: _scale(color[2]),
-                        },
-                    );
+                    let (pixel, skip) = fragment_shader(coords, uv, intensity, diffuse);
+                    if !skip {
+                        zbuffer[zi] = z;
+                        draw_pixel(image, x as u32, y as u32, pixel);
+                    }
                 }
             }
         }
@@ -297,6 +319,19 @@ fn make_modelview(camera: Vector3<f32>, center: Vector3<f32>, up: Vector3<f32>) 
     modelview
 }
 
+fn vertex_shader(
+    vertex: Vector3<f32>,
+    normal: Vector3<f32>,
+    light: Vector3<f32>,
+    transform: Matrix4<f32>,
+) -> (Vector3<i32>, f32) {
+    let t = row_mat4_transform(transform, [vertex[0], vertex[1], vertex[2], 1.]);
+    let screen = vec3_scale([t[0], t[1], t[2]], 1. / t[3]).map(|n| n as i32);
+    let intensity = vec3_dot(normal, light);
+
+    (screen, intensity)
+}
+
 fn draw_poly(image: &mut Image, model: &Model) {
     let w = image.get_width();
     let h = image.get_height();
@@ -315,20 +350,20 @@ fn draw_poly(image: &mut Image, model: &Model) {
     zbuffer.resize(zsize, 0);
 
     for ref face in &model.faces {
-        let mut world: Trianglef = [[0.; 3]; 3];
         let mut screen: Triangle = [[0; 3]; 3];
         let mut texture: Trianglet = [[0.; 2]; 3];
         let mut intensity: Vector3<f32> = [0.; 3];
         for i in 0..3 {
             let ref indices = face[i];
-            let v = model.verts[indices[0]]; // [0] index into 3d vertex coords
-            world[i] = v;
-            let t = row_mat4_transform(transform, [v[0], v[1], v[2], 1.]);
-            screen[i] = vec3_scale([t[0], t[1], t[2]], 1. / t[3]).map(|n| n as i32);
+            (screen[i], intensity[i]) = vertex_shader(
+                model.verts[indices[0]],   // [0] index into 3d vertex coords
+                model.normals[indices[2]], // [2] index into 3d vertex normal
+                light,
+                transform,
+            );
             texture[i] = model.texture[indices[1]]; // [1] index into 2d texture coords
-            intensity[i] = vec3_dot(model.normals[indices[2]], light); // [2] index into 3d vertex normal
         }
-        triangle(
+        draw_triangle(
             image,
             screen,
             texture,
