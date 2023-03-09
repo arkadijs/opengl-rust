@@ -1,6 +1,6 @@
-### Learning Rust by writing a simple rasterizer implementation
+### Learning Rust by writing a simple renderer implementation
 
-After using Scala for several years and learning Go for random system tools, I decided to start with Rust. No challenges suitable for Rust were encountered until I bumped into this [tutorial](http://habrahabr.ru/post/248153/) (in Russian). I love [OpenGL hacks](http://idea.hosting.lv/a/gfx/quakeshots.html)!
+After using Scala for several years and learning Go for random system tools, I decided to start with Rust. No challenges suitable for Rust were encountered until I bumped into this [tutorial](http://habrahabr.ru/post/248153/) (in Russian), available and up-to-date [in English](https://github.com/ssloy/tinyrenderer/wiki). I love [OpenGL hacks](http://idea.hosting.lv/a/gfx/quakeshots.html)!
 
 Day 1 is complete. Learned tons of nice and not-very-nice things about Rust.
 
