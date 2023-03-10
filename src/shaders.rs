@@ -7,7 +7,7 @@ extern crate bmp;
 use bmp::Pixel;
 
 extern crate image as pimage;
-use self::pimage::RgbImage;
+use self::pimage::{Rgb, RgbImage};
 
 use mat::col_mat3x2_mul_vec3;
 
@@ -15,19 +15,23 @@ pub fn fragment(
     barycentric_coords: Vector3<f32>,
     uv: Matrix3x2<f32>,
     intensity: Vector3<f32>,
-    diffuse: &RgbImage,
+    diffuse: &Option<RgbImage>,
+    _normal: &Option<RgbImage>,
+    _specular: &Option<RgbImage>,
 ) -> (Pixel, bool) {
-    let dw = diffuse.width() as f32;
-    let dh = diffuse.height() as f32;
-
-    let uv_interpolated = vec2_mul(col_mat3x2_mul_vec3(uv, barycentric_coords), [dw, dh]);
     // scale diffuse texture components by interpolated intensity
     let _intensity = vec3_dot(intensity, barycentric_coords);
     let _scale = |comp: u8| (comp as f32 * _intensity) as u8;
-    let color = diffuse.get_pixel(
-        uv_interpolated[0] as u32,
-        (dh - uv_interpolated[1] - 1.) as u32,
-    );
+
+    let color = match diffuse {
+        None => Rgb::<u8>::from([255, 255, 255]),
+        Some(texture) => {
+            let dw = texture.width() as f32;
+            let dh = texture.height() as f32;
+            let uv_interpolated = vec2_mul(col_mat3x2_mul_vec3(uv, barycentric_coords), [dw, dh]);
+            *texture.get_pixel(uv_interpolated[0] as u32, uv_interpolated[1] as u32)
+        }
+    };
     let pixel = Pixel {
         r: _scale(color[0]),
         g: _scale(color[1]),

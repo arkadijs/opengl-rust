@@ -112,7 +112,9 @@ fn draw_triangle(
     t: Triangle,
     uv: Trianglet,
     intensity: Vector3<f32>,
-    diffuse: &RgbImage,
+    diffuse: &Option<RgbImage>,
+    normal: &Option<RgbImage>,
+    specular: &Option<RgbImage>,
     zbuffer: &mut Vec<u16>,
 ) {
     let w = image.get_width() as i32;
@@ -137,7 +139,8 @@ fn draw_triangle(
                 let z = (vec3_dot(zcomp, coords) + 0.5) as u16;
                 let zi = (y * w + x) as usize;
                 if zbuffer[zi] < z {
-                    let (pixel, skip) = shaders::fragment(coords, uv, intensity, diffuse);
+                    let (pixel, skip) =
+                        shaders::fragment(coords, uv, intensity, diffuse, normal, specular);
                     if !skip {
                         zbuffer[zi] = z;
                         draw_pixel(image, x as u32, y as u32, pixel);
@@ -154,7 +157,7 @@ pub fn draw_poly(image: &mut Image, model: &Model) {
 
     let center: Vector3<f32> = [0., 0., 0.];
     let camera: Vector3<f32> = [1., 1., 3.];
-    let light: Vector3<f32> = vec3_normalized([1., -1., 1.]);
+    let light: Vector3<f32> = vec3_normalized([1., 1., 1.]);
 
     let viewport: Matrix4<f32> = make_viewport(w / 8, h / 8, w * 3 / 4, h * 3 / 4, u16::MAX as u32);
     let projection: Matrix4<f32> = make_projection(camera, center);
@@ -173,7 +176,7 @@ pub fn draw_poly(image: &mut Image, model: &Model) {
             let ref face_vertex = face[i];
             (screen[i], intensity[i]) = shaders::vertex(
                 model.verts[face_vertex.vert],
-                model.normals[face_vertex.norm],
+                model.vert_normals[face_vertex.norm],
                 light,
                 transform,
             );
@@ -185,6 +188,8 @@ pub fn draw_poly(image: &mut Image, model: &Model) {
             texture,
             intensity,
             &model.diffuse,
+            &model.normal,
+            &model.specular,
             &mut zbuffer,
         );
     }

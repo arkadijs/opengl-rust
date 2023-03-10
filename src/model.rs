@@ -8,6 +8,7 @@ extern crate vecmath;
 use self::vecmath::{Vector2, Vector3};
 
 extern crate image as pimage;
+use self::pimage::error::ImageError;
 use self::pimage::RgbImage;
 
 pub struct FaceVertexIndices {
@@ -19,10 +20,13 @@ pub struct FaceVertexIndices {
 pub struct Model {
     pub verts: Vec<Vector3<f32>>,
     pub texture: Vec<Vector2<f32>>,
-    pub normals: Vec<Vector3<f32>>,
+    pub vert_normals: Vec<Vector3<f32>>,
     // a list of triangles, each vertex containing three indices: into `verts`, `texture`, `normals`
     pub faces: Vec<Vector3<FaceVertexIndices>>,
-    pub diffuse: Box<RgbImage>,
+    pub diffuse: Box<Option<RgbImage>>,
+    pub normal: Box<Option<RgbImage>>,
+    pub specular: Box<Option<RgbImage>>,
+    pub glow: Box<Option<RgbImage>>,
 }
 
 pub fn load(name: &str) -> Model {
@@ -49,31 +53,44 @@ pub fn load(name: &str) -> Model {
         }
     }
     let mut verts = vec![];
-    let mut normals = vec![];
     let mut texture = vec![];
+    let mut vert_normals = vec![];
     let mut faces = vec![];
     for maybe in file.lines() {
         match maybe {
             Err(err) => panic!("I/O error reading {}: {}", obj_file, err),
             Ok(line) => match line.split_whitespace().collect::<Vec<_>>().as_slice() {
                 ["v", x, y, z] => verts.push([_f32(x), _f32(y), _f32(z)]),
-                ["vn", x, y, z] => normals.push([_f32(x), _f32(y), _f32(z)]),
-                ["vt", u, v, _] => texture.push([_f32(u), _f32(v)]),
+                ["vn", x, y, z] => vert_normals.push([_f32(x), _f32(y), _f32(z)]),
+                ["vt", u, v] | ["vt", u, v, _] => texture.push([_f32(u), _f32(v)]),
                 ["f", _1, _2, _3] => faces.push([_mvec(_1), _mvec(_2), _mvec(_3)]),
                 _ => (),
             },
         }
     }
-    let diffuse_file = format!("{}_diffuse.png", name);
-    let diffuse = box match pimage::open(&Path::new(&diffuse_file)) {
-        Err(err) => panic!("I/O error reading {}: {}", diffuse_file, err),
-        Ok(img) => img.into_rgb8(),
-    };
+
+    let [diffuse, normal, specular, glow] = ["diffuse", "nm_tangent", "spec", "glow"].map(|kind| {
+        let filename = format!("{}_{}.png", name, kind);
+        box match pimage::open(&Path::new(&filename)) {
+            Ok(img) => Some(img.into_rgb8()),
+            Err(err) => match err {
+                ImageError::IoError(ioerr) => match ioerr.kind() {
+                    std::io::ErrorKind::NotFound => None,
+                    _ => panic!("I/O error reading {}: {}", filename, ioerr),
+                },
+                _ => panic!("Image error reading {}: {}", filename, err),
+            },
+        }
+    });
+
     Model {
         verts,
         texture,
-        normals,
+        vert_normals,
         faces,
         diffuse,
+        normal,
+        specular,
+        glow,
     }
 }
