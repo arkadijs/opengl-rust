@@ -25,3 +25,7 @@ Day 5 is complete. Perspective.
 Day 6 is complete. Camera and light.
 
 ![Day 6](renders/day6.png)
+
+Day 7 is complete. Perspective divide aware interpolation.
+
+![Day 7](renders/day7.png)

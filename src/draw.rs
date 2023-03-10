@@ -2,8 +2,8 @@ use std::cmp;
 
 extern crate vecmath;
 use self::vecmath::{
-    row_mat4_mul, vec3_cross, vec3_dot, vec3_normalized, Matrix3, Matrix3x2, Matrix4, Vector2,
-    Vector3,
+    row_mat4_mul, vec3_cross, vec3_dot, vec3_mul, vec3_normalized, vec3_scale, Matrix3, Matrix3x2,
+    Matrix4, Vector2, Vector3,
 };
 
 extern crate bmp;
@@ -87,7 +87,7 @@ type Triangle = Matrix3<i32>; // triangle in screen pixels
 type Trianglet = Matrix3x2<f32>; // triangle texture coords 0-1.0
 type Baricentric = Vector3<f32>; // pixel baricentric coordinates in triangle screen coords
 
-fn barycentric(t: Triangle, p: Point) -> Baricentric {
+fn barycentric(t: Triangle, p: Point) -> Option<Baricentric> {
     let u = vec3_cross(
         [
             (t[2][0] - t[0][0]) as f32,
@@ -101,9 +101,14 @@ fn barycentric(t: Triangle, p: Point) -> Baricentric {
         ],
     );
     if u[2].abs() < 1. {
-        [-1., 1., 1.]
+        None
     } else {
-        [1. - (u[0] + u[1]) / u[2], u[1] / u[2], u[0] / u[2]]
+        let maybe = [1. - (u[0] + u[1]) / u[2], u[1] / u[2], u[0] / u[2]];
+        if maybe.iter().all(|&c| c >= 0.) {
+            Some(maybe)
+        } else {
+            None
+        }
     }
 }
 
@@ -111,8 +116,11 @@ fn draw_triangle(
     image: &mut Image,
     t: Triangle,
     uv: Trianglet,
+    perspective_scale: Vector3<f32>,
     intensity: Vector3<f32>,
-    diffuse: &RgbImage,
+    diffuse: &Option<RgbImage>,
+    normal: &Option<RgbImage>,
+    specular: &Option<RgbImage>,
     zbuffer: &mut Vec<u16>,
 ) {
     let w = image.get_width() as i32;
@@ -132,13 +140,17 @@ fn draw_triangle(
     // iterate over bounding box pixels and check barycentric coordinates are within triangle
     for y in bbn[1]..bbx[1] {
         for x in bbn[0]..bbx[0] {
-            let coords = barycentric(t, [x, y]);
-            if coords.iter().all(|c| *c >= 0.) {
+            if let Some(coords) = barycentric(t, [x, y]) {
                 let z = (vec3_dot(zcomp, coords) + 0.5) as u16;
                 let zi = (y * w + x) as usize;
                 if zbuffer[zi] < z {
-                    let (pixel, skip) = shaders::fragment(coords, uv, intensity, diffuse);
-                    if !skip {
+                    // for perspective divide aware interpolation
+                    let c = vec3_mul(coords, perspective_scale);
+                    let clip_coords = vec3_scale(c, 1. / c.iter().sum::<f32>());
+
+                    if let Some(pixel) =
+                        shaders::fragment(clip_coords, uv, intensity, diffuse, normal, specular)
+                    {
                         zbuffer[zi] = z;
                         draw_pixel(image, x as u32, y as u32, pixel);
                     }
@@ -154,7 +166,7 @@ pub fn draw_poly(image: &mut Image, model: &Model) {
 
     let center: Vector3<f32> = [0., 0., 0.];
     let camera: Vector3<f32> = [1., 1., 3.];
-    let light: Vector3<f32> = vec3_normalized([1., -1., 1.]);
+    let light: Vector3<f32> = vec3_normalized([1., 1., 1.]);
 
     let viewport: Matrix4<f32> = make_viewport(w / 8, h / 8, w * 3 / 4, h * 3 / 4, u16::MAX as u32);
     let projection: Matrix4<f32> = make_projection(camera, center);
@@ -168,23 +180,31 @@ pub fn draw_poly(image: &mut Image, model: &Model) {
     for ref face in &model.faces {
         let mut screen: Triangle = [[0; 3]; 3];
         let mut texture: Trianglet = [[0.; 2]; 3];
+        let mut perspective_scale: Vector3<f32> = [0.; 3];
         let mut intensity: Vector3<f32> = [0.; 3];
         for i in 0..3 {
             let ref face_vertex = face[i];
-            (screen[i], intensity[i]) = shaders::vertex(
+            (screen[i], perspective_scale[i], intensity[i]) = shaders::vertex(
                 model.verts[face_vertex.vert],
-                model.normals[face_vertex.norm],
+                model.vert_normals[face_vertex.norm],
                 light,
                 transform,
             );
             texture[i] = model.texture[face_vertex.tex];
         }
+        // no-light backface culling
+        // if intensity[0] < 0. {
+        //     continue;
+        // }
         draw_triangle(
             image,
             screen,
             texture,
+            perspective_scale,
             intensity,
             &model.diffuse,
+            &model.normal,
+            &model.specular,
             &mut zbuffer,
         );
     }

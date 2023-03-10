@@ -24,7 +24,8 @@ where
   Eye coordinates
     * Projection matrix (perspective) =>
   Clip coordinates
-    * Viewport matrix =>
+    * Viewport matrix
+    / perspective divide =>
   Screen coordinates with Z-buffer
 
   v' = viewport * projection * view * model * v

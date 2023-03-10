@@ -8,9 +8,14 @@ pub mod model;
 pub mod shaders;
 
 fn main() {
-    let box ref model = box model::load("models/african_head");
     let mut image = bmp::Image::new(500, 500);
+
+    let box ref model = box model::load("models/african_head");
     draw::draw_poly(&mut image, model);
+
+    let box ref floor = box model::load("models/floor");
+    draw::draw_poly(&mut image, floor);
+
     let image_filename = "render.bmp";
     let _ = image
         .save(image_filename)
