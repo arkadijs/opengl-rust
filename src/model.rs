@@ -23,10 +23,10 @@ pub struct Model {
     pub vert_normals: Vec<Vector3<f32>>,
     // a list of triangles, each vertex containing three indices: into `verts`, `texture`, `normals`
     pub faces: Vec<Vector3<FaceVertexIndices>>,
-    pub diffuse: Box<Option<RgbImage>>,
-    pub normal: Box<Option<RgbImage>>,
-    pub specular: Box<Option<RgbImage>>,
-    pub glow: Box<Option<RgbImage>>,
+    pub diffuse: Option<RgbImage>,
+    pub normal: Option<RgbImage>,
+    pub specular: Option<RgbImage>,
+    pub glow: Option<RgbImage>,
 }
 
 pub fn load(name: &str) -> Model {
@@ -71,7 +71,7 @@ pub fn load(name: &str) -> Model {
 
     let [diffuse, normal, specular, glow] = ["diffuse", "nm_tangent", "spec", "glow"].map(|kind| {
         let filename = format!("{}_{}.png", name, kind);
-        box match pimage::open(&Path::new(&filename)) {
+        match pimage::open(&Path::new(&filename)) {
             Ok(img) => Some(img.into_rgb8()),
             Err(err) => match err {
                 ImageError::IoError(ioerr) => match ioerr.kind() {
