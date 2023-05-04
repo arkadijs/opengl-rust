@@ -7,6 +7,5 @@ authors = [ "Arkadi Shishlov <arkadi.shishlov@gmail.com>" ]
 name = "render"
 
 [dependencies]
-bmp = "0.5.0"
-image = "0.24.5"
+image = "0.24.6"
 vecmath = "1.0.0"

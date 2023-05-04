@@ -3,9 +3,6 @@ use self::vecmath::{
     row_mat4_transform, vec2_mul, vec3_dot, vec3_scale, Matrix3x2, Matrix4, Vector3,
 };
 
-extern crate bmp;
-use bmp::Pixel;
-
 extern crate image as pimage;
 use self::pimage::{Rgb, RgbImage};
 
@@ -18,7 +15,7 @@ pub fn fragment(
     diffuse: &Option<RgbImage>,
     _normal: &Option<RgbImage>,
     _specular: &Option<RgbImage>,
-) -> Option<Pixel> {
+) -> Option<Rgb<u8>> {
     // scale diffuse texture components by interpolated intensity
     let intensity_interpolated = vec3_dot(intensity, barycentric_coords);
     if intensity_interpolated < 0. {
@@ -36,11 +33,7 @@ pub fn fragment(
             *texture.get_pixel(uv_interpolated[0] as u32, uv_interpolated[1] as u32)
         }
     };
-    let pixel = Pixel {
-        r: _scale(color[0]),
-        g: _scale(color[1]),
-        b: _scale(color[2]),
-    };
+    let pixel = Rgb([_scale(color[0]), _scale(color[1]), _scale(color[2])]);
 
     Some(pixel)
 }

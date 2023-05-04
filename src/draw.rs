@@ -6,25 +6,21 @@ use self::vecmath::{
     Matrix4, Vector2, Vector3,
 };
 
-extern crate bmp;
-use bmp::{consts, Image, Pixel};
-
 extern crate image as pimage;
-use self::pimage::RgbImage;
+use self::pimage::{Rgb, RgbImage};
 
 use mat::{make_modelview, make_projection, make_viewport};
 use model::Model;
 use shaders;
 
-pub fn draw_pixel(image: &mut Image, x: u32, y: u32, val: Pixel) {
-    let w = image.get_width();
-    let h = image.get_height();
+pub fn draw_pixel(image: &mut RgbImage, x: u32, y: u32, val: Rgb<u8>) {
+    let (w, h) = image.dimensions();
     if x < w && y < h {
-        image.set_pixel(x, h - y - 1, val)
+        image.put_pixel(x, h - y - 1, val)
     }
 }
 
-pub fn draw_line(x0: u32, y0: u32, x1: u32, y1: u32, image: &mut Image, color: Pixel) {
+pub fn draw_line(x0: u32, y0: u32, x1: u32, y1: u32, image: &mut RgbImage, color: Rgb<u8>) {
     //println!("{} {} -> {} {}", x0, y0, x1, y1);
     let dx = x1 as i32 - x0 as i32;
     let dy = y1 as i32 - y0 as i32;
@@ -59,9 +55,9 @@ pub fn draw_line(x0: u32, y0: u32, x1: u32, y1: u32, image: &mut Image, color: P
     }
 }
 
-fn _draw_wireframe(image: &mut Image, model: &Model) {
-    let w2 = image.get_width() as f32 / 2.;
-    let h2 = image.get_height() as f32 / 2.;
+fn _draw_wireframe(image: &mut RgbImage, model: &Model) {
+    let w2 = image.width() as f32 / 2.;
+    let h2 = image.height() as f32 / 2.;
     for ref face in &model.faces {
         for i in 0..3 {
             let ref v0 = model.verts[face[i].vert];
@@ -76,7 +72,7 @@ fn _draw_wireframe(image: &mut Image, model: &Model) {
                 x1 as u32,
                 y1 as u32,
                 image,
-                consts::WHITE,
+                Rgb([0xff, 0xff, 0xff]),
             );
         }
     }
@@ -113,7 +109,7 @@ fn barycentric(t: Triangle, p: Point) -> Option<Baricentric> {
 }
 
 fn draw_triangle(
-    image: &mut Image,
+    image: &mut RgbImage,
     t: Triangle,
     uv: Trianglet,
     perspective_scale: Vector3<f32>,
@@ -123,8 +119,8 @@ fn draw_triangle(
     specular: &Option<RgbImage>,
     zbuffer: &mut Vec<u16>,
 ) {
-    let w = image.get_width() as i32;
-    let h = image.get_height() as i32;
+    let w = image.width() as i32;
+    let h = image.height() as i32;
     let screen: Point = [w - 1, h - 1];
     let mut bbn = screen;
     let mut bbx: Point = [0, 0];
@@ -160,9 +156,9 @@ fn draw_triangle(
     }
 }
 
-pub fn draw_poly(image: &mut Image, model: &Model) {
-    let w = image.get_width();
-    let h = image.get_height();
+pub fn draw_poly(image: &mut RgbImage, model: &Model) {
+    let w = image.width();
+    let h = image.height();
 
     let center: Vector3<f32> = [0., 0., 0.];
     let camera: Vector3<f32> = [1., 1., 3.];
