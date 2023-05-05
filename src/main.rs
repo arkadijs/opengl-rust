@@ -13,8 +13,8 @@ fn main() {
     let box ref model = box model::load("models/african_head");
     draw::draw_poly(&mut image, model);
 
-    let box ref floor = box model::load("models/floor");
-    draw::draw_poly(&mut image, floor);
+    // let box ref floor = box model::load("models/floor");
+    // draw::draw_poly(&mut image, floor);
 
     let image_filename = "render.png";
     let _ = image

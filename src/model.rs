@@ -69,7 +69,7 @@ pub fn load(name: &str) -> Model {
         }
     }
 
-    let [diffuse, normal, specular, glow] = ["diffuse", "nm_tangent", "spec", "glow"].map(|kind| {
+    let [diffuse, normal, specular, glow] = ["diffuse", "nm", "spec", "glow"].map(|kind| {
         let filename = format!("{}_{}.png", name, kind);
         match pimage::open(&Path::new(&filename)) {
             Ok(img) => Some(img.into_rgb8()),

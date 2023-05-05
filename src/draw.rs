@@ -2,8 +2,8 @@ use std::cmp;
 
 extern crate vecmath;
 use self::vecmath::{
-    row_mat4_mul, vec3_cross, vec3_dot, vec3_mul, vec3_normalized, vec3_scale, Matrix3, Matrix3x2,
-    Matrix4, Vector2, Vector3,
+    mat4_inv, mat4_transposed, row_mat4_mul, vec3_cross, vec3_dot, vec3_mul, vec3_scale, Matrix3,
+    Matrix3x2, Matrix4, Vector2, Vector3,
 };
 
 extern crate image as pimage;
@@ -72,7 +72,7 @@ fn _draw_wireframe(image: &mut RgbImage, model: &Model) {
                 x1 as u32,
                 y1 as u32,
                 image,
-                Rgb([0xff, 0xff, 0xff]),
+                Rgb::<u8>::from([255, 255, 255]),
             );
         }
     }
@@ -114,6 +114,9 @@ fn draw_triangle(
     uv: Trianglet,
     perspective_scale: Vector3<f32>,
     intensity: Vector3<f32>,
+    modelviewprojection: Matrix4<f32>,
+    modelviewprojection_transposed_inverted: Matrix4<f32>,
+    light: Vector3<f32>,
     diffuse: &Option<RgbImage>,
     normal: &Option<RgbImage>,
     specular: &Option<RgbImage>,
@@ -144,9 +147,17 @@ fn draw_triangle(
                     let c = vec3_mul(coords, perspective_scale);
                     let clip_coords = vec3_scale(c, 1. / c.iter().sum::<f32>());
 
-                    if let Some(pixel) =
-                        shaders::fragment(clip_coords, uv, intensity, diffuse, normal, specular)
-                    {
+                    if let Some(pixel) = shaders::fragment(
+                        clip_coords,
+                        uv,
+                        intensity,
+                        modelviewprojection,
+                        modelviewprojection_transposed_inverted,
+                        light,
+                        diffuse,
+                        normal,
+                        specular,
+                    ) {
                         zbuffer[zi] = z;
                         draw_pixel(image, x as u32, y as u32, pixel);
                     }
@@ -162,12 +173,14 @@ pub fn draw_poly(image: &mut RgbImage, model: &Model) {
 
     let center: Vector3<f32> = [0., 0., 0.];
     let camera: Vector3<f32> = [1., 1., 3.];
-    let light: Vector3<f32> = vec3_normalized([1., 1., 1.]);
+    let light: Vector3<f32> = [1., 1., -0.5];
 
     let viewport: Matrix4<f32> = make_viewport(w / 8, h / 8, w * 3 / 4, h * 3 / 4, u16::MAX as u32);
     let projection: Matrix4<f32> = make_projection(camera, center);
     let modelview: Matrix4<f32> = make_modelview(camera, center, [0., 1., 0.]);
-    let transform = row_mat4_mul(row_mat4_mul(viewport, projection), modelview);
+    let modelviewprojection = row_mat4_mul(projection, modelview);
+    let modelviewprojection_transposed_inverted = mat4_inv(mat4_transposed(modelviewprojection));
+    let transform = row_mat4_mul(viewport, modelviewprojection);
 
     let zsize = (w * h) as usize;
     let mut zbuffer = Vec::<u16>::with_capacity(zsize);
@@ -198,6 +211,9 @@ pub fn draw_poly(image: &mut RgbImage, model: &Model) {
             texture,
             perspective_scale,
             intensity,
+            modelviewprojection,
+            modelviewprojection_transposed_inverted,
+            light,
             &model.diffuse,
             &model.normal,
             &model.specular,

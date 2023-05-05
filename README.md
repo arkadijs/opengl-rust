@@ -29,3 +29,7 @@ Day 6 is complete. Camera and light.
 Day 7 is complete. Perspective divide aware interpolation.
 
 ![Day 7](renders/day7.png)
+
+Day 8 is complete. Normal mapping.
+
+![Day 8](renders/day8.png)
