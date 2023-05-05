@@ -52,7 +52,7 @@ pub fn fragment(
         let l = row_mat4_transform(modelviewprojection, [light[0], light[1], light[2], 0.]);
         let light_transformed = vec3_normalized([l[0], l[1], l[2]]);
 
-        intensity_interpolated = f32::max(vec3_dot(norm_transformed, light_transformed), 0.);
+        intensity_interpolated = 1.6 * f32::max(vec3_dot(norm_transformed, light_transformed), 0.);
     }
 
     let pixel = color.map(|comp: u8| (comp as f32 * intensity_interpolated) as u8);
