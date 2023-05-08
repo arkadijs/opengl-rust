@@ -173,7 +173,7 @@ pub fn draw_poly(image: &mut RgbImage, model: &Model) {
 
     let center: Vector3<f32> = [0., 0., 0.];
     let camera: Vector3<f32> = [1., 1., 3.];
-    let light: Vector3<f32> = [1., 1., -0.5];
+    let light: Vector3<f32> = [2., 2., 1.];
 
     let viewport: Matrix4<f32> = make_viewport(w / 8, h / 8, w * 3 / 4, h * 3 / 4, u16::MAX as u32);
     let projection: Matrix4<f32> = make_projection(camera, center);

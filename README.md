@@ -33,3 +33,7 @@ Day 7 - Perspective divide aware interpolation.
 Day 8 - Normal mapping.
 
 ![Day 8](renders/day8.png)
+
+Day 9 - Specular light.
+
+![Day 9](renders/day9.png)

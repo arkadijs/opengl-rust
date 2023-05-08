@@ -1,7 +1,7 @@
 extern crate vecmath;
 use self::vecmath::{
-    row_mat4_transform, vec2_mul, vec3_dot, vec3_normalized, vec3_scale, Matrix3x2, Matrix4,
-    Vector3,
+    row_mat4_transform, vec2_mul, vec3_dot, vec3_normalized, vec3_scale, vec3_sub, Matrix3x2,
+    Matrix4, Vector3,
 };
 
 extern crate image as pimage;
@@ -18,7 +18,7 @@ pub fn fragment(
     light: Vector3<f32>,
     diffuse: &Option<RgbImage>,
     normal: &Option<RgbImage>,
-    _specular: &Option<RgbImage>,
+    specular: &Option<RgbImage>,
 ) -> Option<Rgb<u8>> {
     // scale diffuse texture components by interpolated intensity
     let mut intensity_interpolated = vec3_dot(intensity, barycentric_coords);
@@ -52,7 +52,27 @@ pub fn fragment(
         let l = row_mat4_transform(modelviewprojection, [light[0], light[1], light[2], 0.]);
         let light_transformed = vec3_normalized([l[0], l[1], l[2]]);
 
-        intensity_interpolated = 1.6 * f32::max(vec3_dot(norm_transformed, light_transformed), 0.);
+        let cos = vec3_dot(norm_transformed, light_transformed);
+
+        let ambient = 0.04;
+        let diff = f32::max(cos, 0.);
+        let spec = match specular {
+            None => 0.,
+            Some(specular_texture) => {
+                0.4 * f32::powi(
+                    f32::max(
+                        vec3_normalized(vec3_sub(
+                            vec3_scale(norm_transformed, 2. * cos),
+                            light_transformed,
+                        ))[2],
+                        0.,
+                    ),
+                    _interpolate(specular_texture)[0] as i32, // TODO 1-channel texture
+                )
+            }
+        };
+
+        intensity_interpolated = ambient + diff + spec;
     }
 
     let pixel = color.map(|comp: u8| (comp as f32 * intensity_interpolated) as u8);
