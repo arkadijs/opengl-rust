@@ -59,7 +59,7 @@ pub fn fragment(
         let spec = match specular {
             None => 0.,
             Some(specular_texture) => {
-                0.4 * f32::powi(
+                f32::powi(
                     f32::max(
                         vec3_normalized(vec3_sub(
                             vec3_scale(norm_transformed, 2. * cos),
@@ -67,7 +67,8 @@ pub fn fragment(
                         ))[2],
                         0.,
                     ),
-                    _interpolate(specular_texture)[0] as i32, // TODO 1-channel texture
+                    // 5 + _interpolate(specular_texture)[0] as i32, // TODO 1-channel texture
+                    5 + _interpolate(specular_texture).channels().iter().sum::<u8>() as i32, // TODO colored specular? overflow
                 )
             }
         };

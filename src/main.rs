@@ -1,5 +1,3 @@
-#![feature(box_syntax, box_patterns)]
-
 extern crate image as pimage;
 
 pub mod draw;
@@ -8,9 +6,9 @@ pub mod model;
 pub mod shaders;
 
 fn main() {
-    let mut image = pimage::RgbImage::new(500, 500);
+    let mut image = pimage::RgbImage::new(1500, 1500);
 
-    let box ref model = box model::load("models/african_head");
+    let ref model = Box::new(model::load("models/diablo3_pose"));
     draw::draw_poly(&mut image, model);
 
     // let box ref floor = box model::load("models/floor");
